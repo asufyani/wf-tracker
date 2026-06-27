@@ -118,7 +118,7 @@ describe("FarmPlannerApp", () => {
     expect(screen.getByText("Add prime parts to your wishlist to see relic farm missions.")).toBeInTheDocument();
   });
 
-  it("renders duplicate relic farm drops without React duplicate key warnings", async () => {
+  it("groups relic farm drops by mission and rotation without React duplicate key warnings", async () => {
     localStorage.setItem(PRIME_PART_WISHLIST_STORAGE_KEY, JSON.stringify(["Akbronco Prime Link"]));
     const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
     const user = userEvent.setup();
@@ -127,7 +127,22 @@ describe("FarmPlannerApp", () => {
       render(<FarmPlannerApp repository={createRepository(duplicateRelicFarmSampleHtml)} />);
       await user.click(await screen.findByRole("button", { name: "Relic Farms" }));
 
-      expect(await screen.findAllByRole("article")).toHaveLength(2);
+      const results = await screen.findAllByRole("article");
+      expect(results).toHaveLength(1);
+      expect(within(results[0]).getByText("Mars/Spear (Defense)")).toBeInTheDocument();
+      expect(within(results[0]).getByRole("heading", { name: "Rotation A" })).toBeInTheDocument();
+      expect(within(results[0]).getByRole("heading", { name: "Rotation B" })).toBeInTheDocument();
+      expect(within(results[0]).getAllByRole("table")).toHaveLength(2);
+      expect(
+        within(results[0]).getAllByRole("row", {
+          name: "Lith Z9 Relic Common 33.33% Akbronco Prime Link Rare 2.00%"
+        })
+      ).toHaveLength(2);
+      expect(
+        within(results[0]).getByRole("row", {
+          name: "Lith C14 Relic Rare 7.69% Akbronco Prime Link Common 25.33%"
+        })
+      ).toBeInTheDocument();
       const duplicateKeyWarnings = consoleError.mock.calls.filter(([firstArg]) =>
         String(firstArg).includes("Encountered two children with the same key")
       );
@@ -172,9 +187,13 @@ const duplicateRelicFarmSampleHtml = `
       <p>Rotation A</p>
       <p>Lith Z9 Relic Common (33.33%)</p>
       <p>Lith Z9 Relic Common (33.33%)</p>
+      <p>Rotation B</p>
+      <p>Lith C14 Relic Rare (7.69%)</p>
       <h3>Relics:</h3>
       <p>Lith Z9 Relic (Intact)</p>
       <p>Akbronco Prime Link Rare (2.00%)</p>
+      <p>Lith C14 Relic (Intact)</p>
+      <p>Akbronco Prime Link Common (25.33%)</p>
     </body>
   </html>
 `;

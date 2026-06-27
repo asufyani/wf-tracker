@@ -7,11 +7,12 @@ import {
   type DropEntry,
   type DropSource,
   type DropTableDataset,
-  type FarmOption,
-  type WishlistRelicFarm
-} from "./domain/dropTables";
+  type FarmOption} from "./domain/dropTables";
 import { usePersistentWishlist } from "./usePersistentWishlist";
 import "./styles.css";
+import { formatDate, titleCase, rotationSortValue } from "./utils";
+import { RelicFarmsView } from "./RelicFarms";
+import { WishlistView } from "./Wishlist";
 
 interface FarmPlannerAppProps {
   repository: DropTableRepository;
@@ -324,138 +325,6 @@ function MissionDropTableCard({
   );
 }
 
-function WishlistView({
-  matchingPrimeParts,
-  onAddPart,
-  onPrimePartQueryChange,
-  onRemovePart,
-  primePartQuery,
-  wishlist
-}: {
-  matchingPrimeParts: string[];
-  onAddPart(itemName: string): void;
-  onPrimePartQueryChange(value: string): void;
-  onRemovePart(itemName: string): void;
-  primePartQuery: string;
-  wishlist: string[];
-}) {
-  return (
-    <section className="wishlist-layout" aria-label="Prime part wishlist">
-      <div className="wishlist-panel">
-        <label className="search-field">
-          <span>Search prime part</span>
-          <input
-            aria-label="Search prime part"
-            onChange={(event) => onPrimePartQueryChange(event.target.value)}
-            placeholder="Try Akbronco Prime Link"
-            type="search"
-            value={primePartQuery}
-          />
-        </label>
-        {primePartQuery.trim().length >= 2 ? (
-          matchingPrimeParts.length > 0 ? (
-            <div className="suggestions" aria-label="Matching prime part suggestions">
-              {matchingPrimeParts.map((itemName) => (
-                <button key={itemName} onClick={() => onAddPart(itemName)} type="button">
-                  Add {itemName}
-                </button>
-              ))}
-            </div>
-          ) : (
-            <p className="muted-copy">No unwishlisted prime parts match that search.</p>
-          )
-        ) : (
-          <p className="muted-copy">Search relic rewards to add prime parts.</p>
-        )}
-      </div>
-
-      <div className="wishlist-panel">
-        <h2>Wishlist</h2>
-        {wishlist.length > 0 ? (
-          <ul className="wishlist-list" aria-label="Wishlist parts">
-            {wishlist.map((itemName) => (
-              <li key={itemName}>
-                <span>{itemName}</span>
-                <button onClick={() => onRemovePart(itemName)} type="button">
-                  Remove {itemName}
-                </button>
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <p className="muted-copy">No prime parts saved yet.</p>
-        )}
-      </div>
-    </section>
-  );
-}
-
-function RelicFarmsView({
-  relicFarms,
-  wishlist
-}: {
-  relicFarms: WishlistRelicFarm[];
-  wishlist: string[];
-}) {
-  if (wishlist.length === 0) {
-    return (
-      <section className="empty-state">
-        <h2>Add prime parts to your wishlist to see relic farm missions.</h2>
-      </section>
-    );
-  }
-
-  if (relicFarms.length === 0) {
-    return (
-      <section className="empty-state">
-        <h2>No mission relic farms found for your wishlist.</h2>
-      </section>
-    );
-  }
-
-  return (
-    <section className="results-stack" aria-label="Relic farm missions">
-      {relicFarms.map((farm, farmIndex) => (
-        <article
-          className="mission-card"
-          key={`${farm.missionSourceId}-${farm.rotation ?? "base"}-${farm.relicName}-${farmIndex}`}
-        >
-          <div className="mission-card-header">
-            <p className="category">{farm.rotation ? `Rotation ${farm.rotation}` : "Mission relic farm"}</p>
-            <h2>{farm.missionName}</h2>
-          </div>
-          <div className="table-scroll">
-            <table className="drop-table relic-farm-table">
-              <thead>
-                <tr>
-                  <th scope="col">Relic</th>
-                  <th scope="col">Relic Rarity</th>
-                  <th scope="col">Mission Chance</th>
-                  <th scope="col">Wishlist Part</th>
-                  <th scope="col">Part Rarity</th>
-                  <th scope="col">Relic Chance</th>
-                </tr>
-              </thead>
-              <tbody>
-                {farm.wishedParts.map((part) => (
-                  <tr key={`${farm.relicName}-${part.itemName}`}>
-                    <td>{farm.relicName}</td>
-                    <td>{farm.relicDropRarity}</td>
-                    <td>{farm.relicDropChance.toFixed(2)}%</td>
-                    <td>{part.itemName}</td>
-                    <td>{part.rarity}</td>
-                    <td>{part.chance.toFixed(2)}%</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </article>
-      ))}
-    </section>
-  );
-}
-
 function buildMissionDropTables(dataset: DropTableDataset, farmOptions: FarmOption[]): MissionDropTable[] {
   const sourceById = new Map(dataset.sources.map((source) => [source.id, source]));
   const seenSourceIds = new Set<string>();
@@ -495,30 +364,4 @@ function groupDropsByRotation(drops: DropEntry[]): RotationDropGroup[] {
       rotation,
       drops: rotationDrops
     }));
-}
-
-function rotationSortValue(rotation: string): number {
-  if (rotation === "Base") {
-    return 999;
-  }
-
-  const normalized = rotation.toUpperCase();
-  if (/^[A-Z]$/.test(normalized)) {
-    return normalized.charCodeAt(0) - 64;
-  }
-
-  return 500;
-}
-
-function formatDate(value: string): string {
-  return new Intl.DateTimeFormat("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-    timeZone: "UTC"
-  }).format(new Date(value));
-}
-
-function titleCase(value: string): string {
-  return value.replace(/\b\w/g, (letter) => letter.toUpperCase());
 }

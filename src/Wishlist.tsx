@@ -8,6 +8,8 @@ export function WishlistView({
   primePartQuery: string;
   wishlist: string[];
 }) {
+  const groupedWishlist = groupWishlistParts(wishlist);
+
   return (
     <section className="wishlist-layout" aria-label="Prime part wishlist">
       <div className="wishlist-panel">
@@ -41,12 +43,22 @@ export function WishlistView({
         <h2>Wishlist</h2>
         {wishlist.length > 0 ? (
           <ul className="wishlist-list" aria-label="Wishlist parts">
-            {wishlist.map((itemName) => (
-              <li key={itemName}>
-                <span>{itemName}</span>
-                <button aria-label={`Remove ${itemName}`} onClick={() => onRemovePart(itemName)} type="button">
-                  X
-                </button>
+            {groupedWishlist.map((group) => (
+              <li className="wishlist-group" key={group.itemName}>
+                <h3>{group.itemName}</h3>
+                <ul className="wishlist-part-list" aria-label={`${group.itemName} parts`}>
+                  {group.parts.map((part) => (
+                    <li key={part.itemName}>
+                      <span>{part.partName}</span>
+                      <button
+                        aria-label={`Remove ${part.itemName}`}
+                        onClick={() => onRemovePart(part.itemName)}
+                        type="button">
+                        X
+                      </button>
+                    </li>
+                  ))}
+                </ul>
               </li>
             ))}
           </ul>
@@ -56,4 +68,63 @@ export function WishlistView({
       </div>
     </section>
   );
+}
+
+interface WishlistGroup {
+  itemName: string;
+  parts: WishlistPart[];
+}
+
+interface WishlistPart {
+  itemName: string;
+  partName: string;
+}
+
+function groupWishlistParts(wishlist: string[]): WishlistGroup[] {
+  const groups = new Map<string, WishlistGroup>();
+
+  for (const itemName of wishlist) {
+    const primePartName = splitPrimePartName(itemName);
+    const part = {
+      itemName,
+      partName: primePartName.partName
+    };
+    const group = groups.get(primePartName.primeItemName);
+
+    if (group) {
+      group.parts.push(part);
+    } else {
+      groups.set(primePartName.primeItemName, {
+        itemName: primePartName.primeItemName,
+        parts: [part]
+      });
+    }
+  }
+
+  return [...groups.values()]
+    .map((group) => ({
+      ...group,
+      parts: [...group.parts].sort((left, right) => left.partName.localeCompare(right.partName))
+    }))
+    .sort((left, right) => left.itemName.localeCompare(right.itemName));
+}
+
+interface PrimePartName {
+  primeItemName: string;
+  partName: string;
+}
+
+function splitPrimePartName(itemName: string): PrimePartName {
+  const match = /^(.+\bPrime)\s+(.+)$/.exec(itemName);
+  if (!match) {
+    return {
+      primeItemName: itemName,
+      partName: itemName
+    };
+  }
+
+  return {
+    primeItemName: match[1],
+    partName: match[2]
+  };
 }

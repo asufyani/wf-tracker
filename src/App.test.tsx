@@ -79,7 +79,8 @@ describe("FarmPlannerApp", () => {
     await user.type(screen.getByLabelText("Search prime part"), "Akbronco");
     await user.click(await screen.findByRole("button", { name: "Add Akbronco Prime Link" }));
 
-    expect(screen.getByRole("list", { name: "Wishlist parts" })).toHaveTextContent("Akbronco Prime Link");
+    expect(screen.getByRole("heading", { name: "Akbronco Prime" })).toBeInTheDocument();
+    expect(within(screen.getByRole("list", { name: "Akbronco Prime parts" })).getByText("Link")).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Relic Farms" }));
 
@@ -96,7 +97,8 @@ describe("FarmPlannerApp", () => {
 
     await user.click(await screen.findByRole("button", { name: "Wishlist" }));
 
-    expect(screen.getByRole("list", { name: "Wishlist parts" })).toHaveTextContent("Akbronco Prime Link");
+    expect(screen.getByRole("heading", { name: "Akbronco Prime" })).toBeInTheDocument();
+    expect(within(screen.getByRole("list", { name: "Akbronco Prime parts" })).getByText("Link")).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Relic Farms" }));
 

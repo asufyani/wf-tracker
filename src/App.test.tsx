@@ -1,12 +1,17 @@
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createDropTableRepository, type DropTableStorage } from "./data/dropTableRepository";
 import { parseDropTableHtml, type DropTableDataset } from "./domain/dropTables";
-import { dropTableSampleHtml } from "./test/dropTableSample";
+import { dropTableSampleHtml, primePartFarmSampleHtml } from "./test/dropTableSample";
+import { PRIME_PART_WISHLIST_STORAGE_KEY } from "./usePersistentWishlist";
 import { FarmPlannerApp } from "./App";
 
 describe("FarmPlannerApp", () => {
+  beforeEach(() => {
+    localStorage.clear();
+  });
+
   it("shows matching missions as rotation drop tables", async () => {
     const user = userEvent.setup();
     render(<FarmPlannerApp repository={createRepository()} />);
@@ -26,6 +31,22 @@ describe("FarmPlannerApp", () => {
     expect(within(results[1]).getByText("Venus/Beacon Shield Ring (Caches)")).toBeInTheDocument();
     expect(within(results[1]).getByRole("heading", { name: "Rotation A" })).toBeInTheDocument();
     expect(within(results[1]).getByRole("row", { name: "100 Endo Uncommon 26.09%" })).toBeInTheDocument();
+  });
+
+  it("marks the active planner view as current", async () => {
+    const user = userEvent.setup();
+    render(<FarmPlannerApp repository={createRepository()} />);
+
+    const itemSearchButton = await screen.findByRole("button", { name: "Item Search" });
+    const wishlistButton = screen.getByRole("button", { name: "Wishlist" });
+
+    expect(itemSearchButton).toHaveAttribute("aria-current", "page");
+    expect(wishlistButton).not.toHaveAttribute("aria-current");
+
+    await user.click(wishlistButton);
+
+    expect(wishlistButton).toHaveAttribute("aria-current", "page");
+    expect(itemSearchButton).not.toHaveAttribute("aria-current");
   });
 
   it("shows a clear empty state when no item matches", async () => {
@@ -49,15 +70,96 @@ describe("FarmPlannerApp", () => {
 
     expect(await screen.findByText("Scraped Jun 27, 2026")).toBeInTheDocument();
   });
+
+  it("adds a prime part to the wishlist and shows missions for matching relics", async () => {
+    const user = userEvent.setup();
+    render(<FarmPlannerApp repository={createRepository(primePartFarmSampleHtml)} />);
+
+    await user.click(await screen.findByRole("button", { name: "Wishlist" }));
+    await user.type(screen.getByLabelText("Search prime part"), "Akbronco");
+    await user.click(await screen.findByRole("button", { name: "Add Akbronco Prime Link" }));
+
+    expect(screen.getByRole("list", { name: "Wishlist parts" })).toHaveTextContent("Akbronco Prime Link");
+
+    await user.click(screen.getByRole("button", { name: "Relic Farms" }));
+
+    const results = await screen.findAllByRole("article");
+    expect(results[0]).toHaveTextContent("Mars/Spear (Defense)");
+    expect(within(results[0]).getByRole("row", { name: "Lith Z9 Relic Common 33.33% Akbronco Prime Link Rare 2.00%" })).toBeInTheDocument();
+    expect(screen.queryByText("Level 5 - 15 Cetus Bounty")).not.toBeInTheDocument();
+  });
+
+  it("restores the wishlist from localStorage", async () => {
+    localStorage.setItem(PRIME_PART_WISHLIST_STORAGE_KEY, JSON.stringify(["Akbronco Prime Link"]));
+    const user = userEvent.setup();
+    render(<FarmPlannerApp repository={createRepository(primePartFarmSampleHtml)} />);
+
+    await user.click(await screen.findByRole("button", { name: "Wishlist" }));
+
+    expect(screen.getByRole("list", { name: "Wishlist parts" })).toHaveTextContent("Akbronco Prime Link");
+
+    await user.click(screen.getByRole("button", { name: "Relic Farms" }));
+
+    const marsFarm = await screen.findByText("Mars/Spear (Defense)");
+    const marsArticle = marsFarm.closest("article");
+    expect(marsArticle).not.toBeNull();
+    expect(within(marsArticle!).getByRole("row", { name: "Lith Z9 Relic Common 33.33% Akbronco Prime Link Rare 2.00%" })).toBeInTheDocument();
+  });
+
+  it("removes a prime part from the wishlist and clears relic farms", async () => {
+    localStorage.setItem(PRIME_PART_WISHLIST_STORAGE_KEY, JSON.stringify(["Akbronco Prime Link"]));
+    const user = userEvent.setup();
+    render(<FarmPlannerApp repository={createRepository(primePartFarmSampleHtml)} />);
+
+    await user.click(await screen.findByRole("button", { name: "Wishlist" }));
+    await user.click(screen.getByRole("button", { name: "Remove Akbronco Prime Link" }));
+    await user.click(screen.getByRole("button", { name: "Relic Farms" }));
+
+    expect(screen.getByText("Add prime parts to your wishlist to see relic farm missions.")).toBeInTheDocument();
+  });
+
+  it("groups relic farm drops by mission and rotation without React duplicate key warnings", async () => {
+    localStorage.setItem(PRIME_PART_WISHLIST_STORAGE_KEY, JSON.stringify(["Akbronco Prime Link"]));
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const user = userEvent.setup();
+
+    try {
+      render(<FarmPlannerApp repository={createRepository(duplicateRelicFarmSampleHtml)} />);
+      await user.click(await screen.findByRole("button", { name: "Relic Farms" }));
+
+      const results = await screen.findAllByRole("article");
+      expect(results).toHaveLength(1);
+      expect(within(results[0]).getByText("Mars/Spear (Defense)")).toBeInTheDocument();
+      expect(within(results[0]).getByRole("heading", { name: "Rotation A" })).toBeInTheDocument();
+      expect(within(results[0]).getByRole("heading", { name: "Rotation B" })).toBeInTheDocument();
+      expect(within(results[0]).getAllByRole("table")).toHaveLength(2);
+      expect(
+        within(results[0]).getAllByRole("row", {
+          name: "Lith Z9 Relic Common 33.33% Akbronco Prime Link Rare 2.00%"
+        })
+      ).toHaveLength(2);
+      expect(
+        within(results[0]).getByRole("row", {
+          name: "Lith C14 Relic Rare 7.69% Akbronco Prime Link Common 25.33%"
+        })
+      ).toBeInTheDocument();
+      const duplicateKeyWarnings = consoleError.mock.calls.filter(([firstArg]) =>
+        String(firstArg).includes("Encountered two children with the same key")
+      );
+      expect(duplicateKeyWarnings).toHaveLength(0);
+    } finally {
+      consoleError.mockRestore();
+    }
+  });
 });
 
-function createRepository() {
-  const bundled = createDataset("2026-06-27T18:00:00.000Z");
+function createRepository(html = dropTableSampleHtml) {
+  const bundled = createDataset("2026-06-27T18:00:00.000Z", html);
   return createDropTableRepository(createMemoryStorage(), bundled);
 }
 
-function createDataset(scrapedAt: string): DropTableDataset {
-  return parseDropTableHtml(dropTableSampleHtml, {
+function createDataset(scrapedAt: string, html = dropTableSampleHtml): DropTableDataset {
+  return parseDropTableHtml(html, {
     sourceUrl: "https://example.test/drop-tables.html",
     scrapedAt
   });
@@ -75,3 +177,23 @@ function createMemoryStorage(initialDataset?: DropTableDataset): DropTableStorag
     }
   };
 }
+
+const duplicateRelicFarmSampleHtml = `
+  <html>
+    <body>
+      <h3>Last Update: 08 April, 2026</h3>
+      <h3>Missions:</h3>
+      <p>Mars/Spear (Defense)</p>
+      <p>Rotation A</p>
+      <p>Lith Z9 Relic Common (33.33%)</p>
+      <p>Lith Z9 Relic Common (33.33%)</p>
+      <p>Rotation B</p>
+      <p>Lith C14 Relic Rare (7.69%)</p>
+      <h3>Relics:</h3>
+      <p>Lith Z9 Relic (Intact)</p>
+      <p>Akbronco Prime Link Rare (2.00%)</p>
+      <p>Lith C14 Relic (Intact)</p>
+      <p>Akbronco Prime Link Common (25.33%)</p>
+    </body>
+  </html>
+`;

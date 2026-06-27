@@ -38,7 +38,26 @@ describe("usePersistentWishlist", () => {
 
     render(<WishlistHarness />);
 
-    expect(screen.getByTestId("wishlist-value")).toHaveTextContent("Paris Prime String");
+    expect(screen.getByTestId("wishlist-value").textContent).toBe("Paris Prime String");
+  });
+
+  it("trims wishlist entries loaded from localStorage", () => {
+    localStorage.setItem(PRIME_PART_WISHLIST_STORAGE_KEY, JSON.stringify([" Akbronco Prime Link "]));
+
+    render(<WishlistHarness />);
+
+    expect(screen.getByTestId("wishlist-value").textContent).toBe("Akbronco Prime Link");
+  });
+
+  it("deduplicates case-insensitive wishlist entries loaded from localStorage", () => {
+    localStorage.setItem(
+      PRIME_PART_WISHLIST_STORAGE_KEY,
+      JSON.stringify(["Akbronco Prime Link", "akbronco prime link"])
+    );
+
+    render(<WishlistHarness />);
+
+    expect(screen.getByTestId("wishlist-value").textContent).toBe("Akbronco Prime Link");
   });
 
   it("ignores invalid JSON from localStorage", () => {
@@ -70,6 +89,19 @@ describe("usePersistentWishlist", () => {
         "Akbronco Prime Link"
       ]);
     });
+
+    await user.click(screen.getByRole("button", { name: "Remove Akbronco" }));
+
+    expect(screen.getByTestId("wishlist-value")).toHaveTextContent("empty");
+    await waitFor(() => {
+      expect(JSON.parse(localStorage.getItem(PRIME_PART_WISHLIST_STORAGE_KEY) ?? "[]")).toEqual([]);
+    });
+  });
+
+  it("removes a padded wishlist entry loaded from localStorage", async () => {
+    const user = userEvent.setup();
+    localStorage.setItem(PRIME_PART_WISHLIST_STORAGE_KEY, JSON.stringify([" Akbronco Prime Link "]));
+    render(<WishlistHarness />);
 
     await user.click(screen.getByRole("button", { name: "Remove Akbronco" }));
 

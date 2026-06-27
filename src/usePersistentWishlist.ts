@@ -16,7 +16,7 @@ export function usePersistentWishlist(storageKey = PRIME_PART_WISHLIST_STORAGE_K
   }, [storageKey, wishlist]);
 
   function addToWishlist(itemName: string) {
-    const canonicalName = itemName.trim();
+    const canonicalName = normalizeWishlistItemName(itemName);
     if (!canonicalName) {
       return;
     }
@@ -31,8 +31,10 @@ export function usePersistentWishlist(storageKey = PRIME_PART_WISHLIST_STORAGE_K
   }
 
   function removeFromWishlist(itemName: string) {
-    const itemKey = itemName.trim().toLowerCase();
-    setWishlist((currentWishlist) => currentWishlist.filter((currentName) => currentName.toLowerCase() !== itemKey));
+    const itemKey = normalizeWishlistItemName(itemName).toLowerCase();
+    setWishlist((currentWishlist) =>
+      currentWishlist.filter((currentName) => normalizeWishlistItemName(currentName).toLowerCase() !== itemKey)
+    );
   }
 
   return {
@@ -40,6 +42,10 @@ export function usePersistentWishlist(storageKey = PRIME_PART_WISHLIST_STORAGE_K
     addToWishlist,
     removeFromWishlist
   };
+}
+
+function normalizeWishlistItemName(itemName: string): string {
+  return itemName.trim();
 }
 
 function readStoredWishlist(storageKey: string): string[] {
@@ -54,9 +60,25 @@ function readStoredWishlist(storageKey: string): string[] {
       return [];
     }
 
-    return parsedWishlist.filter(
-      (itemName): itemName is string => typeof itemName === "string" && itemName.trim().length > 0
-    );
+    const wishlistItemsByKey = new Map<string, string>();
+
+    for (const itemName of parsedWishlist) {
+      if (typeof itemName !== "string") {
+        continue;
+      }
+
+      const canonicalName = normalizeWishlistItemName(itemName);
+      if (!canonicalName) {
+        continue;
+      }
+
+      const itemKey = canonicalName.toLowerCase();
+      if (!wishlistItemsByKey.has(itemKey)) {
+        wishlistItemsByKey.set(itemKey, canonicalName);
+      }
+    }
+
+    return [...wishlistItemsByKey.values()].sort((left, right) => left.localeCompare(right));
   } catch {
     return [];
   }

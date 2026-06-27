@@ -1,17 +1,23 @@
 import { useEffect, useMemo, useState } from "react";
 import type { DropTableRepository } from "./data/dropTableRepository";
 import {
+  buildWishlistRelicFarms,
+  listPrimePartCandidates,
   rankDropSourcesForItem,
   type DropEntry,
   type DropSource,
   type DropTableDataset,
-  type FarmOption
+  type FarmOption,
+  type WishlistRelicFarm
 } from "./domain/dropTables";
+import { usePersistentWishlist } from "./usePersistentWishlist";
 import "./styles.css";
 
 interface FarmPlannerAppProps {
   repository: DropTableRepository;
 }
+
+type PlannerView = "search" | "wishlist" | "farms";
 
 interface MissionDropTable {
   source: DropSource;
@@ -28,6 +34,9 @@ export function FarmPlannerApp({ repository }: FarmPlannerAppProps) {
   const [query, setQuery] = useState("");
   const [error, setError] = useState<string>();
   const [isResetting, setIsResetting] = useState(false);
+  const [activeView, setActiveView] = useState<PlannerView>("search");
+  const [primePartQuery, setPrimePartQuery] = useState("");
+  const { wishlist, addToWishlist, removeFromWishlist } = usePersistentWishlist();
 
   useEffect(() => {
     let isMounted = true;
@@ -76,6 +85,39 @@ export function FarmPlannerApp({ repository }: FarmPlannerAppProps) {
 
     return buildMissionDropTables(dataset, farmOptions);
   }, [dataset, farmOptions]);
+  const primePartCandidates = useMemo(() => (dataset ? listPrimePartCandidates(dataset) : []), [dataset]);
+  const primePartCandidateByKey = useMemo(
+    () => new Map(primePartCandidates.map((itemName) => [itemName.toLowerCase(), itemName])),
+    [primePartCandidates]
+  );
+  const visibleWishlist = useMemo(
+    () =>
+      wishlist
+        .map((itemName) => primePartCandidateByKey.get(itemName.toLowerCase()))
+        .filter((itemName): itemName is string => Boolean(itemName)),
+    [primePartCandidateByKey, wishlist]
+  );
+  const visibleWishlistKeys = useMemo(
+    () => new Set(visibleWishlist.map((itemName) => itemName.toLowerCase())),
+    [visibleWishlist]
+  );
+  const matchingPrimeParts = useMemo(() => {
+    const trimmedPrimePartQuery = primePartQuery.trim().toLowerCase();
+    if (trimmedPrimePartQuery.length < 2) {
+      return [];
+    }
+
+    return primePartCandidates
+      .filter(
+        (itemName) =>
+          itemName.toLowerCase().includes(trimmedPrimePartQuery) && !visibleWishlistKeys.has(itemName.toLowerCase())
+      )
+      .slice(0, 8);
+  }, [primePartCandidates, primePartQuery, visibleWishlistKeys]);
+  const wishlistRelicFarms = useMemo(
+    () => (dataset ? buildWishlistRelicFarms(dataset, visibleWishlist) : []),
+    [dataset, visibleWishlist]
+  );
 
   async function resetLocalCache() {
     setIsResetting(true);
@@ -137,53 +179,96 @@ export function FarmPlannerApp({ repository }: FarmPlannerAppProps) {
         </dl>
       </header>
 
-      <section className="planner-tools" aria-label="Planner controls">
-        <label className="search-field">
-          <span>Search item</span>
-          <input
-            aria-label="Search item"
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder="Try 100 Endo, Parry, Akbronco Prime Link"
-            type="search"
-          />
-        </label>
-        <button className="secondary-action" disabled={isResetting} onClick={resetLocalCache} type="button">
-          {isResetting ? "Resetting..." : "Reset local cache"}
+      <nav className="view-tabs" aria-label="Planner views">
+        <button
+          className={activeView === "search" ? "active" : undefined}
+          onClick={() => setActiveView("search")}
+          type="button"
+        >
+          Item Search
         </button>
-      </section>
+        <button
+          className={activeView === "wishlist" ? "active" : undefined}
+          onClick={() => setActiveView("wishlist")}
+          type="button"
+        >
+          Wishlist
+        </button>
+        <button
+          className={activeView === "farms" ? "active" : undefined}
+          onClick={() => setActiveView("farms")}
+          type="button"
+        >
+          Relic Farms
+        </button>
+      </nav>
 
-      {trimmedQuery && farmOptions.length === 0 ? (
-        <section className="empty-state">
-          <h2>No drop sources found for {trimmedQuery}.</h2>
-          {matchingItems.length > 0 ? (
-            <div className="suggestions" aria-label="Matching item suggestions">
-              {matchingItems.map((itemName) => (
-                <button key={itemName} onClick={() => setQuery(titleCase(itemName))} type="button">
-                  {titleCase(itemName)}
-                </button>
-              ))}
-            </div>
+      {activeView === "search" ? (
+        <>
+          <section className="planner-tools" aria-label="Planner controls">
+            <label className="search-field">
+              <span>Search item</span>
+              <input
+                aria-label="Search item"
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder="Try 100 Endo, Parry, Akbronco Prime Link"
+                type="search"
+              />
+            </label>
+            <button className="secondary-action" disabled={isResetting} onClick={resetLocalCache} type="button">
+              {isResetting ? "Resetting..." : "Reset local cache"}
+            </button>
+          </section>
+
+          {trimmedQuery && farmOptions.length === 0 ? (
+            <section className="empty-state">
+              <h2>No drop sources found for {trimmedQuery}.</h2>
+              {matchingItems.length > 0 ? (
+                <div className="suggestions" aria-label="Matching item suggestions">
+                  {matchingItems.map((itemName) => (
+                    <button key={itemName} onClick={() => setQuery(titleCase(itemName))} type="button">
+                      {titleCase(itemName)}
+                    </button>
+                  ))}
+                </div>
+              ) : null}
+            </section>
           ) : null}
-        </section>
+
+          {!trimmedQuery ? (
+            <section className="empty-state">
+              <h2>Search for an item to rank its farm sources.</h2>
+            </section>
+          ) : null}
+
+          {missionDropTables.length > 0 ? (
+            <section className="results-stack" aria-label={`Farm options for ${trimmedQuery}`}>
+              {missionDropTables.map((missionDropTable) => (
+                <MissionDropTableCard
+                  key={missionDropTable.source.id}
+                  missionDropTable={missionDropTable}
+                  searchedItem={trimmedQuery}
+                />
+              ))}
+            </section>
+          ) : null}
+        </>
       ) : null}
 
-      {!trimmedQuery ? (
-        <section className="empty-state">
-          <h2>Search for an item to rank its farm sources.</h2>
-        </section>
+      {activeView === "wishlist" ? (
+        <WishlistView
+          matchingPrimeParts={matchingPrimeParts}
+          onAddPart={addToWishlist}
+          onPrimePartQueryChange={setPrimePartQuery}
+          onRemovePart={removeFromWishlist}
+          primePartQuery={primePartQuery}
+          wishlist={visibleWishlist}
+        />
       ) : null}
 
-      {missionDropTables.length > 0 ? (
-        <section className="results-stack" aria-label={`Farm options for ${trimmedQuery}`}>
-          {missionDropTables.map((missionDropTable) => (
-            <MissionDropTableCard
-              key={missionDropTable.source.id}
-              missionDropTable={missionDropTable}
-              searchedItem={trimmedQuery}
-            />
-          ))}
-        </section>
+      {activeView === "farms" ? (
+        <RelicFarmsView relicFarms={wishlistRelicFarms} wishlist={visibleWishlist} />
       ) : null}
     </main>
   );
@@ -233,6 +318,138 @@ function MissionDropTableCard({
         ))}
       </div>
     </article>
+  );
+}
+
+function WishlistView({
+  matchingPrimeParts,
+  onAddPart,
+  onPrimePartQueryChange,
+  onRemovePart,
+  primePartQuery,
+  wishlist
+}: {
+  matchingPrimeParts: string[];
+  onAddPart(itemName: string): void;
+  onPrimePartQueryChange(value: string): void;
+  onRemovePart(itemName: string): void;
+  primePartQuery: string;
+  wishlist: string[];
+}) {
+  return (
+    <section className="wishlist-layout" aria-label="Prime part wishlist">
+      <div className="wishlist-panel">
+        <label className="search-field">
+          <span>Search prime part</span>
+          <input
+            aria-label="Search prime part"
+            onChange={(event) => onPrimePartQueryChange(event.target.value)}
+            placeholder="Try Akbronco Prime Link"
+            type="search"
+            value={primePartQuery}
+          />
+        </label>
+        {primePartQuery.trim().length >= 2 ? (
+          matchingPrimeParts.length > 0 ? (
+            <div className="suggestions" aria-label="Matching prime part suggestions">
+              {matchingPrimeParts.map((itemName) => (
+                <button key={itemName} onClick={() => onAddPart(itemName)} type="button">
+                  Add {itemName}
+                </button>
+              ))}
+            </div>
+          ) : (
+            <p className="muted-copy">No unwishlisted prime parts match that search.</p>
+          )
+        ) : (
+          <p className="muted-copy">Search relic rewards to add prime parts.</p>
+        )}
+      </div>
+
+      <div className="wishlist-panel">
+        <h2>Wishlist</h2>
+        {wishlist.length > 0 ? (
+          <ul className="wishlist-list" aria-label="Wishlist parts">
+            {wishlist.map((itemName) => (
+              <li key={itemName}>
+                <span>{itemName}</span>
+                <button onClick={() => onRemovePart(itemName)} type="button">
+                  Remove {itemName}
+                </button>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="muted-copy">No prime parts saved yet.</p>
+        )}
+      </div>
+    </section>
+  );
+}
+
+function RelicFarmsView({
+  relicFarms,
+  wishlist
+}: {
+  relicFarms: WishlistRelicFarm[];
+  wishlist: string[];
+}) {
+  if (wishlist.length === 0) {
+    return (
+      <section className="empty-state">
+        <h2>Add prime parts to your wishlist to see relic farm missions.</h2>
+      </section>
+    );
+  }
+
+  if (relicFarms.length === 0) {
+    return (
+      <section className="empty-state">
+        <h2>No mission relic farms found for your wishlist.</h2>
+      </section>
+    );
+  }
+
+  return (
+    <section className="results-stack" aria-label="Relic farm missions">
+      {relicFarms.map((farm) => (
+        <article
+          className="mission-card"
+          key={`${farm.missionSourceId}-${farm.rotation ?? "base"}-${farm.relicName}`}
+        >
+          <div className="mission-card-header">
+            <p className="category">{farm.rotation ? `Rotation ${farm.rotation}` : "Mission relic farm"}</p>
+            <h2>{farm.missionName}</h2>
+          </div>
+          <div className="table-scroll">
+            <table className="drop-table relic-farm-table">
+              <thead>
+                <tr>
+                  <th scope="col">Relic</th>
+                  <th scope="col">Relic Rarity</th>
+                  <th scope="col">Mission Chance</th>
+                  <th scope="col">Wishlist Part</th>
+                  <th scope="col">Part Rarity</th>
+                  <th scope="col">Relic Chance</th>
+                </tr>
+              </thead>
+              <tbody>
+                {farm.wishedParts.map((part) => (
+                  <tr key={`${farm.relicName}-${part.itemName}`}>
+                    <td>{farm.relicName}</td>
+                    <td>{farm.relicDropRarity}</td>
+                    <td>{farm.relicDropChance.toFixed(2)}%</td>
+                    <td>{part.itemName}</td>
+                    <td>{part.rarity}</td>
+                    <td>{part.chance.toFixed(2)}%</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </article>
+      ))}
+    </section>
   );
 }
 

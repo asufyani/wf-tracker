@@ -1,6 +1,6 @@
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createDropTableRepository, type DropTableStorage } from "./data/dropTableRepository";
 import { parseDropTableHtml, type DropTableDataset } from "./domain/dropTables";
 import { dropTableSampleHtml, primePartFarmSampleHtml } from "./test/dropTableSample";
@@ -31,6 +31,22 @@ describe("FarmPlannerApp", () => {
     expect(within(results[1]).getByText("Venus/Beacon Shield Ring (Caches)")).toBeInTheDocument();
     expect(within(results[1]).getByRole("heading", { name: "Rotation A" })).toBeInTheDocument();
     expect(within(results[1]).getByRole("row", { name: "100 Endo Uncommon 26.09%" })).toBeInTheDocument();
+  });
+
+  it("marks the active planner view as current", async () => {
+    const user = userEvent.setup();
+    render(<FarmPlannerApp repository={createRepository()} />);
+
+    const itemSearchButton = await screen.findByRole("button", { name: "Item Search" });
+    const wishlistButton = screen.getByRole("button", { name: "Wishlist" });
+
+    expect(itemSearchButton).toHaveAttribute("aria-current", "page");
+    expect(wishlistButton).not.toHaveAttribute("aria-current");
+
+    await user.click(wishlistButton);
+
+    expect(wishlistButton).toHaveAttribute("aria-current", "page");
+    expect(itemSearchButton).not.toHaveAttribute("aria-current");
   });
 
   it("shows a clear empty state when no item matches", async () => {
@@ -101,6 +117,25 @@ describe("FarmPlannerApp", () => {
 
     expect(screen.getByText("Add prime parts to your wishlist to see relic farm missions.")).toBeInTheDocument();
   });
+
+  it("renders duplicate relic farm drops without React duplicate key warnings", async () => {
+    localStorage.setItem(PRIME_PART_WISHLIST_STORAGE_KEY, JSON.stringify(["Akbronco Prime Link"]));
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const user = userEvent.setup();
+
+    try {
+      render(<FarmPlannerApp repository={createRepository(duplicateRelicFarmSampleHtml)} />);
+      await user.click(await screen.findByRole("button", { name: "Relic Farms" }));
+
+      expect(await screen.findAllByRole("article")).toHaveLength(2);
+      const duplicateKeyWarnings = consoleError.mock.calls.filter(([firstArg]) =>
+        String(firstArg).includes("Encountered two children with the same key")
+      );
+      expect(duplicateKeyWarnings).toHaveLength(0);
+    } finally {
+      consoleError.mockRestore();
+    }
+  });
 });
 
 function createRepository(html = dropTableSampleHtml) {
@@ -127,3 +162,19 @@ function createMemoryStorage(initialDataset?: DropTableDataset): DropTableStorag
     }
   };
 }
+
+const duplicateRelicFarmSampleHtml = `
+  <html>
+    <body>
+      <h3>Last Update: 08 April, 2026</h3>
+      <h3>Missions:</h3>
+      <p>Mars/Spear (Defense)</p>
+      <p>Rotation A</p>
+      <p>Lith Z9 Relic Common (33.33%)</p>
+      <p>Lith Z9 Relic Common (33.33%)</p>
+      <h3>Relics:</h3>
+      <p>Lith Z9 Relic (Intact)</p>
+      <p>Akbronco Prime Link Rare (2.00%)</p>
+    </body>
+  </html>
+`;

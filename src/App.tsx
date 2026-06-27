@@ -181,6 +181,7 @@ export function FarmPlannerApp({ repository }: FarmPlannerAppProps) {
 
       <nav className="view-tabs" aria-label="Planner views">
         <button
+          aria-current={activeView === "search" ? "page" : undefined}
           className={activeView === "search" ? "active" : undefined}
           onClick={() => setActiveView("search")}
           type="button"
@@ -188,6 +189,7 @@ export function FarmPlannerApp({ repository }: FarmPlannerAppProps) {
           Item Search
         </button>
         <button
+          aria-current={activeView === "wishlist" ? "page" : undefined}
           className={activeView === "wishlist" ? "active" : undefined}
           onClick={() => setActiveView("wishlist")}
           type="button"
@@ -195,6 +197,7 @@ export function FarmPlannerApp({ repository }: FarmPlannerAppProps) {
           Wishlist
         </button>
         <button
+          aria-current={activeView === "farms" ? "page" : undefined}
           className={activeView === "farms" ? "active" : undefined}
           onClick={() => setActiveView("farms")}
           type="button"
@@ -412,10 +415,10 @@ function RelicFarmsView({
 
   return (
     <section className="results-stack" aria-label="Relic farm missions">
-      {relicFarms.map((farm) => (
+      {relicFarms.map((farm, farmIndex) => (
         <article
           className="mission-card"
-          key={`${farm.missionSourceId}-${farm.rotation ?? "base"}-${farm.relicName}`}
+          key={`${farm.missionSourceId}-${farm.rotation ?? "base"}-${farm.relicName}-${farmIndex}`}
         >
           <div className="mission-card-header">
             <p className="category">{farm.rotation ? `Rotation ${farm.rotation}` : "Mission relic farm"}</p>

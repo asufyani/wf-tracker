@@ -15,6 +15,12 @@ function WishlistHarness({ storageKey = PRIME_PART_WISHLIST_STORAGE_KEY }: { sto
       <button onClick={() => addToWishlist(" akbronco prime link ")} type="button">
         Add Duplicate
       </button>
+      <button onClick={() => addToWishlist("   ")} type="button">
+        Add Whitespace
+      </button>
+      <button onClick={() => addToWishlist("Zephyr Prime Grip")} type="button">
+        Add Zephyr
+      </button>
       <button onClick={() => removeFromWishlist("Akbronco Prime Link")} type="button">
         Remove Akbronco
       </button>
@@ -33,6 +39,22 @@ describe("usePersistentWishlist", () => {
     render(<WishlistHarness />);
 
     expect(screen.getByTestId("wishlist-value")).toHaveTextContent("Paris Prime String");
+  });
+
+  it("ignores invalid JSON from localStorage", () => {
+    localStorage.setItem(PRIME_PART_WISHLIST_STORAGE_KEY, "not valid JSON");
+
+    render(<WishlistHarness />);
+
+    expect(screen.getByTestId("wishlist-value")).toHaveTextContent("empty");
+  });
+
+  it("ignores non-array JSON from localStorage", () => {
+    localStorage.setItem(PRIME_PART_WISHLIST_STORAGE_KEY, JSON.stringify({ itemName: "Paris Prime String" }));
+
+    render(<WishlistHarness />);
+
+    expect(screen.getByTestId("wishlist-value")).toHaveTextContent("empty");
   });
 
   it("adds, deduplicates, removes, and persists wishlist entries", async () => {
@@ -55,5 +77,27 @@ describe("usePersistentWishlist", () => {
     await waitFor(() => {
       expect(JSON.parse(localStorage.getItem(PRIME_PART_WISHLIST_STORAGE_KEY) ?? "[]")).toEqual([]);
     });
+  });
+
+  it("ignores whitespace-only additions", async () => {
+    const user = userEvent.setup();
+    render(<WishlistHarness />);
+
+    await user.click(screen.getByRole("button", { name: "Add Whitespace" }));
+
+    expect(screen.getByTestId("wishlist-value")).toHaveTextContent("empty");
+    await waitFor(() => {
+      expect(JSON.parse(localStorage.getItem(PRIME_PART_WISHLIST_STORAGE_KEY) ?? "[]")).toEqual([]);
+    });
+  });
+
+  it("sorts additions alphabetically", async () => {
+    const user = userEvent.setup();
+    render(<WishlistHarness />);
+
+    await user.click(screen.getByRole("button", { name: "Add Zephyr" }));
+    await user.click(screen.getByRole("button", { name: "Add Akbronco" }));
+
+    expect(screen.getByTestId("wishlist-value")).toHaveTextContent("Akbronco Prime Link|Zephyr Prime Grip");
   });
 });

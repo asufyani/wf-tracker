@@ -73,7 +73,7 @@ describe("FarmPlannerApp", () => {
 
   it("adds a prime part to the wishlist and shows missions for matching relics", async () => {
     const user = userEvent.setup();
-    render(<FarmPlannerApp repository={createRepository(primePartFarmSampleHtml)} />);
+    render(<FarmPlannerApp loadFissures={loadNoFissures} repository={createRepository(primePartFarmSampleHtml)} />);
 
     await user.click(await screen.findByRole("button", { name: "Wishlist" }));
     await user.type(screen.getByLabelText("Search prime part"), "Akbronco");
@@ -92,7 +92,7 @@ describe("FarmPlannerApp", () => {
   it("restores the wishlist from localStorage", async () => {
     localStorage.setItem(PRIME_PART_WISHLIST_STORAGE_KEY, JSON.stringify(["Akbronco Prime Link"]));
     const user = userEvent.setup();
-    render(<FarmPlannerApp repository={createRepository(primePartFarmSampleHtml)} />);
+    render(<FarmPlannerApp loadFissures={loadNoFissures} repository={createRepository(primePartFarmSampleHtml)} />);
 
     await user.click(await screen.findByRole("button", { name: "Wishlist" }));
 
@@ -109,7 +109,7 @@ describe("FarmPlannerApp", () => {
   it("removes a prime part from the wishlist and clears relic farms", async () => {
     localStorage.setItem(PRIME_PART_WISHLIST_STORAGE_KEY, JSON.stringify(["Akbronco Prime Link"]));
     const user = userEvent.setup();
-    render(<FarmPlannerApp repository={createRepository(primePartFarmSampleHtml)} />);
+    render(<FarmPlannerApp loadFissures={loadNoFissures} repository={createRepository(primePartFarmSampleHtml)} />);
 
     await user.click(await screen.findByRole("button", { name: "Wishlist" }));
     await user.click(screen.getByRole("button", { name: "Remove Akbronco Prime Link" }));
@@ -124,7 +124,7 @@ describe("FarmPlannerApp", () => {
     const user = userEvent.setup();
 
     try {
-      render(<FarmPlannerApp repository={createRepository(duplicateRelicFarmSampleHtml)} />);
+      render(<FarmPlannerApp loadFissures={loadNoFissures} repository={createRepository(duplicateRelicFarmSampleHtml)} />);
       await user.click(await screen.findByRole("button", { name: "Relic Farms" }));
 
       const results = await screen.findAllByRole("article");
@@ -151,7 +151,57 @@ describe("FarmPlannerApp", () => {
       consoleError.mockRestore();
     }
   });
+
+  it("highlights relic farm missions with an active fissure on the same node", async () => {
+    localStorage.setItem(PRIME_PART_WISHLIST_STORAGE_KEY, JSON.stringify(["Akbronco Prime Link"]));
+    const user = userEvent.setup();
+    const loadFissures = vi.fn().mockResolvedValue([
+      {
+        id: "fissure-1",
+        node: "Spear (Mars)",
+        missionType: "Defense",
+        tier: "Lith",
+        expiry: "2099-06-27T19:00:00.000Z",
+        isStorm: false,
+        isHard: false
+      }
+    ]);
+    render(
+      <FarmPlannerApp
+        fissurePollIntervalMs={60_000}
+        loadFissures={loadFissures}
+        repository={createRepository(primePartFarmSampleHtml)}
+      />
+    );
+
+    await user.click(await screen.findByRole("button", { name: "Relic Farms" }));
+
+    const marsFarm = await screen.findByText("Mars/Spear (Defense)");
+    const marsArticle = marsFarm.closest("article");
+    expect(marsArticle).not.toBeNull();
+    expect(await within(marsArticle!).findByText("Active Lith Fissure")).toBeInTheDocument();
+    expect(marsArticle).toHaveClass("active-fissure-card");
+  });
+
+  it("ranks relic farm mission cards by total mission chance", async () => {
+    localStorage.setItem(
+      PRIME_PART_WISHLIST_STORAGE_KEY,
+      JSON.stringify(["Akbronco Prime Link", "Paris Prime String"])
+    );
+    const user = userEvent.setup();
+    render(<FarmPlannerApp loadFissures={loadNoFissures} repository={createRepository(totalMissionChanceSampleHtml)} />);
+
+    await user.click(await screen.findByRole("button", { name: "Relic Farms" }));
+
+    const results = await screen.findAllByRole("article");
+    expect(within(results[0]).getByText("Venus/Unda (Spy)")).toBeInTheDocument();
+    expect(within(results[1]).getByText("Mars/Spear (Defense)")).toBeInTheDocument();
+  });
 });
+
+async function loadNoFissures() {
+  return [];
+}
 
 function createRepository(html = dropTableSampleHtml) {
   const bundled = createDataset("2026-06-27T18:00:00.000Z", html);
@@ -194,6 +244,29 @@ const duplicateRelicFarmSampleHtml = `
       <p>Akbronco Prime Link Rare (2.00%)</p>
       <p>Lith C14 Relic (Intact)</p>
       <p>Akbronco Prime Link Common (25.33%)</p>
+    </body>
+  </html>
+`;
+
+const totalMissionChanceSampleHtml = `
+  <html>
+    <body>
+      <h3>Last Update: 08 April, 2026</h3>
+      <h3>Missions:</h3>
+      <p>Mars/Spear (Defense)</p>
+      <p>Rotation A</p>
+      <p>Lith Z9 Relic Common (40.00%)</p>
+      <p>Venus/Unda (Spy)</p>
+      <p>Rotation A</p>
+      <p>Lith C14 Relic Common (25.00%)</p>
+      <p>Lith P2 Relic Common (25.00%)</p>
+      <h3>Relics:</h3>
+      <p>Lith Z9 Relic (Intact)</p>
+      <p>Akbronco Prime Link Common (25.33%)</p>
+      <p>Lith C14 Relic (Intact)</p>
+      <p>Akbronco Prime Link Common (25.33%)</p>
+      <p>Lith P2 Relic (Intact)</p>
+      <p>Paris Prime String Common (25.33%)</p>
     </body>
   </html>
 `;

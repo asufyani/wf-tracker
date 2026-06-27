@@ -8,6 +8,8 @@ import {
   type DropSource,
   type DropTableDataset,
   type FarmOption} from "./domain/dropTables";
+import type { FissureMission } from "./domain/fissures";
+import { useCurrentFissures } from "./useCurrentFissures";
 import { usePersistentWishlist } from "./usePersistentWishlist";
 import "./styles.css";
 import { formatDate, titleCase, rotationSortValue } from "./utils";
@@ -15,6 +17,8 @@ import { RelicFarmsView } from "./RelicFarms";
 import { WishlistView } from "./Wishlist";
 
 interface FarmPlannerAppProps {
+  fissurePollIntervalMs?: number;
+  loadFissures?: () => Promise<FissureMission[]>;
   repository: DropTableRepository;
 }
 
@@ -30,7 +34,7 @@ interface RotationDropGroup {
   drops: DropEntry[];
 }
 
-export function FarmPlannerApp({ repository }: FarmPlannerAppProps) {
+export function FarmPlannerApp({ fissurePollIntervalMs, loadFissures, repository }: FarmPlannerAppProps) {
   const [dataset, setDataset] = useState<DropTableDataset>();
   const [query, setQuery] = useState("");
   const [error, setError] = useState<string>();
@@ -119,6 +123,11 @@ export function FarmPlannerApp({ repository }: FarmPlannerAppProps) {
     () => (dataset ? buildWishlistRelicFarms(dataset, visibleWishlist) : []),
     [dataset, visibleWishlist]
   );
+  const currentFissures = useCurrentFissures({
+    enabled: activeView === "farms" && visibleWishlist.length > 0,
+    loadFissures,
+    pollIntervalMs: fissurePollIntervalMs
+  });
 
   async function resetLocalCache() {
     setIsResetting(true);
@@ -272,7 +281,11 @@ export function FarmPlannerApp({ repository }: FarmPlannerAppProps) {
       ) : null}
 
       {activeView === "farms" ? (
-        <RelicFarmsView relicFarms={wishlistRelicFarms} wishlist={visibleWishlist} />
+        <RelicFarmsView
+          activeFissures={currentFissures.fissures}
+          relicFarms={wishlistRelicFarms}
+          wishlist={visibleWishlist}
+        />
       ) : null}
     </main>
   );

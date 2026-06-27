@@ -54,7 +54,9 @@ function readStoredWishlist(storageKey: string): string[] {
       return [];
     }
 
-    return parsedWishlist.filter((itemName): itemName is string => typeof itemName === "string" && itemName.trim());
+    return parsedWishlist.filter(
+      (itemName): itemName is string => typeof itemName === "string" && itemName.trim().length > 0
+    );
   } catch {
     return [];
   }

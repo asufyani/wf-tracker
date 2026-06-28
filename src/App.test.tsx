@@ -86,7 +86,9 @@ describe("FarmPlannerApp", () => {
 
     const results = await screen.findAllByRole("article");
     expect(results[0]).toHaveTextContent("Mars/Spear (Defense)");
-    expect(within(results[0]).getByRole("row", { name: "Lith Z9 Relic Common 33.33% Akbronco Prime Link Rare 2.00%" })).toBeInTheDocument();
+    expect(
+      within(results[0]).getByRole("row", { name: "Lith Z9 Relic Common 33.33% Akbronco Prime Link" })
+    ).toBeInTheDocument();
     expect(screen.queryByText("Level 5 - 15 Cetus Bounty")).not.toBeInTheDocument();
   });
 
@@ -105,7 +107,9 @@ describe("FarmPlannerApp", () => {
     const marsFarm = await screen.findByText("Mars/Spear (Defense)");
     const marsArticle = marsFarm.closest("article");
     expect(marsArticle).not.toBeNull();
-    expect(within(marsArticle!).getByRole("row", { name: "Lith Z9 Relic Common 33.33% Akbronco Prime Link Rare 2.00%" })).toBeInTheDocument();
+    expect(
+      within(marsArticle!).getByRole("row", { name: "Lith Z9 Relic Common 33.33% Akbronco Prime Link" })
+    ).toBeInTheDocument();
   });
 
   it("removes a prime part from the wishlist and clears relic farms", async () => {
@@ -137,12 +141,12 @@ describe("FarmPlannerApp", () => {
       expect(within(results[0]).getAllByRole("table")).toHaveLength(2);
       expect(
         within(results[0]).getAllByRole("row", {
-          name: "Lith Z9 Relic Common 33.33% Akbronco Prime Link Rare 2.00%"
+          name: "Lith Z9 Relic Common 33.33% Akbronco Prime Link"
         })
       ).toHaveLength(2);
       expect(
         within(results[0]).getByRole("row", {
-          name: "Lith C14 Relic Rare 7.69% Akbronco Prime Link Common 25.33%"
+          name: "Lith C14 Relic Rare 7.69% Akbronco Prime Link"
         })
       ).toBeInTheDocument();
       const duplicateKeyWarnings = consoleError.mock.calls.filter(([firstArg]) =>

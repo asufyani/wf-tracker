@@ -90,8 +90,6 @@ function RelicFarmMissionCard({
                     <th scope="col">Relic Rarity</th>
                     <th scope="col">Mission Chance</th>
                     <th scope="col">Wishlist Part</th>
-                    <th scope="col">Part Rarity</th>
-                    <th scope="col">Relic Chance</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -103,9 +101,7 @@ function RelicFarmMissionCard({
                         <td>{farm.relicName}</td>
                         <td>{farm.relicDropRarity}</td>
                         <td>{farm.relicDropChance.toFixed(2)}%</td>
-                        <td>{part.itemName}</td>
-                        <td>{part.rarity}</td>
-                        <td>{part.chance.toFixed(2)}%</td>
+                        <td className={getPartRewardRarity(part.chance)}>{part.itemName}</td>
                       </tr>
                     ))
                   )}
@@ -192,4 +188,13 @@ function formatFissureExpiry(expiry: string): string {
     hour: "numeric",
     minute: "2-digit"
   });
+}
+
+function getPartRewardRarity(chance: number): string {
+  const rarityMap = {
+    '25.33': 'common',
+    '11.00': 'uncommon',
+    '2.00': 'rare'
+  };
+  return rarityMap[chance.toFixed(2) as keyof typeof rarityMap] || '';
 }
